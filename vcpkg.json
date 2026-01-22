@@ -1,0 +1,10 @@
+{
+  "name": "solarsystem",
+  "version-string": "0.1",
+  "dependencies": [
+    "glfw3",
+    "glm",
+    "glew",
+    "assimp"
+  ]
+}
