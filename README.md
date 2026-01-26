@@ -14,7 +14,7 @@ The project uses CMake for building, GLFW/GLEW/GLM for rendering utilities, and 
   - Blur passes control
 
 ## Controls
-- **W/A/S/D** or **Arrow keys**: move (only in free camera mode)
+- **W/A/S/D** or **Arrow keys**: move (only in free camera mode)  A ENLEVER 
 - **Mouse wheel**: zoom (FOV)
 - **0**: free camera
 - **1..8**: focus a planet
@@ -22,7 +22,6 @@ The project uses CMake for building, GLFW/GLEW/GLM for rendering utilities, and 
 - **T**: toggle orbit trajectories
 - **B**: toggle bloom
 - **F**: toggle lens flare
-- **[ / ]**: decrease / increase blur passes
 - **ESC**: quit
 
 ## Tech Stack
