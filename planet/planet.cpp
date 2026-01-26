@@ -79,7 +79,6 @@ static const double cooldownDuration = 0.25;
 static double lastKeyPressTime = 0.0;
 
 
-// Focus (planet camera) LYNDA
 // On mémorise la position free cam pour la restaurer avec 0
 static glm::vec3 freeCamPosBackup(0.0f);
 static bool hasFreeCamBackup = false;
@@ -90,6 +89,11 @@ static float focusPitch = 15.0f;
 
 //Distance à la planète
 static float focusDistance = 12.0f;
+
+static const float trackpadLookSensitivity = 0.45f;
+static const float trackpadMoveSpeed = 80.0f;
+static const float trackpadOrbitSensitivity = 6.0f;
+
 
 //Sensitivity for focus orbit
 static const float focusMouseSensitivity = 0.12f;
@@ -170,10 +174,19 @@ static float visualRadiusFor(const std::string& name) {
 }
 
 static float focusDistanceFor(const std::string& name) {
-    
-    // Assez proche pour que la planète soit grosse, sans être dedans
-    float r = visualRadiusFor(name);
-    return glm::clamp(r * 3.0f + 6.0f, 8.0f, 120.0f);
+    if (name == "Mercury") return 2.0f;
+
+    if (name == "Venus")   return 6.0f;
+    if (name == "Earth")   return 6.0f;
+    if (name == "Mars")    return 3.0f;
+
+    if (name == "Jupiter") return 80.0f;
+    if (name == "Saturn")  return 85.0f;
+
+    if (name == "Uranus")  return 40.0f;
+    if (name == "Neptune") return 30.0f;
+
+    return 150.0f;
 }
 
 static void setFocus(const std::string& name) {
@@ -185,10 +198,10 @@ static void setFocus(const std::string& name) {
 
     cameraType = name;
 
-    // Reset orbit angles so we start with a nice view 
     focusYaw = 45.0f;
     focusPitch = 15.0f;
     focusDistance = focusDistanceFor(name);
+    std::cout << "[FOCUS] " << name << " focusDistance=" << focusDistance << std::endl;
 
     firstMouse = true;
 
@@ -562,11 +575,9 @@ int system() {
         glClearColor(0.00f, 0.00f, 0.00f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Camera (FREE or FOCUS) LYNDA
         glm::mat4 view(1.0f);
 
         if (cameraType.empty()) {
-            //Free cam = Camera class (WASD + souris)
             view = camera.GetViewMatrix();
         }
         else {
@@ -833,7 +844,10 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         if (key == GLFW_KEY_7) { setFocus("Uranus");  return; }
         if (key == GLFW_KEY_8) { setFocus("Neptune"); return; }
         if (key == GLFW_KEY_0) { clearFocus();        return; }
+
+        if (key == GLFW_KEY_SPACE && !cameraType.empty()) { clearFocus(); return; }
     }
+
 }
 
 static void MouseCallback(GLFWwindow* window, double xPos, double yPos) {
@@ -852,32 +866,61 @@ static void MouseCallback(GLFWwindow* window, double xPos, double yPos) {
     lastX = (GLfloat)xPos;
     lastY = (GLfloat)yPos;
 
-    
     if (menuActive) return;
 
     if (cameraType.empty()) {
-        // Free camera look 
         camera.ProcessMouseMovement(xOffset, yOffset);
+        return;
     }
-    else {
-        focusYaw += xOffset * focusMouseSensitivity;
-        focusPitch += yOffset * focusMouseSensitivity;
+
+    focusYaw += xOffset * focusMouseSensitivity;
+    focusPitch += yOffset * focusMouseSensitivity;
+    focusPitch = glm::clamp(focusPitch, -89.0f, 89.0f);
+}
+
+static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    if (menuActive) return;
+
+    const bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+
+    if (cameraType.empty())
+    {
+        if (shift)
+        {
+            float forward = -(float)yoffset * trackpadMoveSpeed;
+            float strafe = (float)xoffset * trackpadMoveSpeed;
+
+            camera.Position += camera.Front * forward;
+            camera.Position += camera.Right * strafe;
+        }
+        else
+        {
+            camera.ProcessMouseScroll((float)yoffset);
+        }
+        return;
+    }
+
+    if (shift)
+    {
+        focusYaw += (float)xoffset * trackpadOrbitSensitivity;
+        focusPitch += (float)-yoffset * trackpadOrbitSensitivity;
         focusPitch = glm::clamp(focusPitch, -89.0f, 89.0f);
+    }
+    else
+    {
+        focusDistance -= (float)yoffset * 10.0f;
+        focusDistance = glm::clamp(focusDistance, 5.0f, 5000.0f);
     }
 }
 
-static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    (void)window; (void)xoffset;
-    camera.ProcessMouseScroll((float)-yoffset);
-}
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     (void)window;
     glViewport(0, 0, width, height);
 }
 
-
-// Cubemap loader
 
 static unsigned int loadCubemap(const std::vector<std::string>& faces) {
     unsigned int textureID = 0;
