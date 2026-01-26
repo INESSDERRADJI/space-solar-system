@@ -11,9 +11,15 @@
 // Lib includes
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <ImGui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+
+
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
 
 // local includes
 #include "camera.h"
@@ -23,7 +29,7 @@
 // For stbi_load used in loadCubemap (stb_image.h)
 #include "stb_image.h"
 
-static const GLint WIDTH = 1280, HEIGHT = 720;
+static const GLint WIDTH = 2560, HEIGHT = 1480;
 static const double PI = 3.141592653589793238463;
 
 static int SCREEN_WIDTH = WIDTH, SCREEN_HEIGHT = HEIGHT;
@@ -36,6 +42,13 @@ static void MouseCallback(GLFWwindow* window, double xPos, double yPos);
 static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 static unsigned int loadCubemap(const std::vector<std::string>& faces);
 static void doMovement();
+
+
+
+//planetes 
+
+std::vector<std::string> planets = { "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune" };
+
 
 // Camera + input 
 // Position initiale (vue globale)
@@ -91,8 +104,12 @@ static float focusPitch = 15.0f;
 //Distance à la planète
 static float focusDistance = 12.0f;
 
+//hauteur de la fusée :
+static float rocketHeight = 9.6f;
+
 //Sensitivity for focus orbit
 static const float focusMouseSensitivity = 0.12f;
+
 
 static glm::vec3 orbitOffsetFromAngles(float yawDeg, float pitchDeg, float distance) {
     float yaw = glm::radians(yawDeg);
@@ -105,6 +122,9 @@ static glm::vec3 orbitOffsetFromAngles(float yawDeg, float pitchDeg, float dista
 
     return dir * distance;
 }
+
+
+
 
 
 // Helpers
@@ -123,9 +143,14 @@ static std::vector<glm::vec3> orbitCircle(float radius, int segments, const glm:
 struct Sphere {
     glm::vec3 center;
     float radius;
+    bool showPanel = false;
+
+    float getRadius() {
+        return radius;
+    }
 };
 
-static Sphere createSphere(float radius, glm::vec3 position) {
+static Sphere createSphere( float radius, glm::vec3 position) {
     Sphere sphere;
     sphere.center = position;
     sphere.radius = radius;
@@ -155,8 +180,82 @@ static glm::vec3 planetPosFor(const std::string& name, bool move, GLuint i) {
     return lightPos;
 }
 
+static float rotationPeriod(const std::string& name) {
+    if (name == "Mercury") return 1407.6f;
+    if (name == "Venus")   return 5832.5f;
+    if (name == "Earth")   return 23.9f;
+    if (name == "Mars")    return 24.6f;
+    if (name == "Jupiter") return 9.9f;
+    if (name == "Saturn")  return 10.55f;
+    if (name == "Uranus")  return 17.2;
+    if (name == "Neptune") return 16.1f;
+
+}
+
+static float orbitalPeriod(const std::string& name) {
+    if (name == "Mercury") return 88.f;
+    if (name == "Venus")   return 225.f;
+    if (name == "Earth")   return 365.2f;
+    if (name == "Mars")    return 687.f;
+    if (name == "Jupiter") return 4332.6f;
+    if (name == "Saturn")  return 10759.f;
+    if (name == "Uranus")  return 30688.5f;
+    if (name == "Neptune") return 60182.f;
+
+}
+
+static int planetRadius(const std::string& name) {
+    if (name == "Mercury") return 2439;
+    if (name == "Venus")   return 6052;
+    if (name == "Earth")   return 6371;
+    if (name == "Mars")    return 3389;
+    if (name == "Jupiter") return 69911;
+    if (name == "Saturn")  return 58262;
+    if (name == "Uranus")  return 25362;
+    if (name == "Neptune") return 24622;
+}
+
+
+//GUI
+
+void RenderGui() {
+    bool show_demo_window = true;
+
+    ImGui::SetNextWindowPos(ImVec2(0, 0));          // X, Y
+    ImGui::SetNextWindowSize(ImVec2(250, 200));       // Largeur, Hauteur
+
+
+    ImGui::Begin("Command Panel");
+    for (int i = 0; i < planets.size(); i++) {
+        ImGui::Text("Press %d to focus on %s", i + 1, planets[i].c_str());
+    }
+
+    ImGui::Text(" position x : %.2f ,\n y : %.2f,\n z : %.2f ", camera.Position.x, camera.Position.y , camera.Position.z);
+
+    ImGui::End();
+
+
+
+}
+
+void RenderGuiOn(const std::string& s) {
+
+    ImGui::SetNextWindowPos(ImVec2(0, 0));          // X, Y
+    ImGui::SetNextWindowSize(ImVec2(250, 200));       // Largeur, Hauteur
+
+
+    ImGui::Begin(s.c_str());
+
+    ImGui::Text("Planet Radius : %d kilometers", planetRadius(s));
+    ImGui::Text("Rotation Period : %.2f hours", rotationPeriod(s));
+    ImGui::Text("Orbital Period : %.2f days", orbitalPeriod(s));
+    ImGui::SliderFloat("Height", &rocketHeight, 9.0f, 10.0f);
+
+    ImGui::End();
+}
 
 // FR: Rayon visuel uniquement pour choisir une distance de focus correcte
+
 static float visualRadiusFor(const std::string& name) {
     if (name == "Mercury") return 0.35f;
     if (name == "Venus")   return 1.0f;
@@ -193,6 +292,8 @@ static void setFocus(const std::string& name) {
     firstMouse = true;
 
     menuActive = false;
+
+
 }
 
 static void clearFocus() {
@@ -200,6 +301,41 @@ static void clearFocus() {
     if (hasFreeCamBackup) camera.Position = freeCamPosBackup;
     firstMouse = true;
 }
+
+
+
+static void draw_rocket(
+    const glm::mat4& planetModel,
+    Model& rocketModel,
+    Shader& shader,
+    float heightOffset,
+    float scale,
+    float yaw = 0.0f
+)
+{
+    glm::mat4 model = planetModel; 
+    model = glm::translate(
+        model,
+        glm::vec3(0.0f, heightOffset, 0.0f) 
+    );
+
+    model = glm::rotate(
+        model,
+        yaw,
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+
+    model = glm::scale(
+        model,
+        glm::vec3(scale)
+    );
+
+    shader.use();
+    shader.setMat4("model", model);
+    rocketModel.Draw(shader);
+}
+
+
 
 //Draw helpers
 static void draw_moon(const glm::vec3& pos, Model& moon, float moonOrbitRadius, Shader& shader) {
@@ -222,13 +358,15 @@ static void draw_planet(
     Shader& shader, Shader& pathShader, Model& planet,
     Sphere* sphere = nullptr,
     Model* moon = nullptr, Shader* moonShader = nullptr,
-    unsigned int nightTextureID = 0, unsigned int cloudTextureID = 0
-) {
+    unsigned int nightTextureID = 0, unsigned int cloudTextureID = 0,
+    Model* rocketModel = nullptr)
+{
     (void)view; (void)projection; (void)pathShader;
 
     GLfloat angle = 0.0f, radius = 0.0f, x = 0.0f, z = 0.0f;
     glm::mat4 model(1.0f);
     glm::vec3 pos(0.0f);
+    
 
     if (move) {
         angle = outerRotationSpeed * (GLfloat)i;
@@ -243,6 +381,8 @@ static void draw_planet(
         model = glm::translate(model, glm::vec3(outerRadius * scale, 0.0f, 0.0f));
     }
 
+    
+
     // Spin
     angle = innerRotationSpeed * (GLfloat)i * 1.35f;
     model = glm::rotate(model, glm::radians(innerYawDeg) + angle, glm::vec3(0.0f, 0.1f, 0.0f));
@@ -252,13 +392,31 @@ static void draw_planet(
     shader.setMat4("model", model);
 
     // Earth special (day/night/clouds)
-    if (name == "Earth") {
+    if (name == "Earth" ) {
         planet.Draw2(shader, "night", nightTextureID, "cloud", cloudTextureID, glfwGetTime());
         if (moon && moonShader) draw_moon(pos, *moon, 0.035f, *moonShader);
         return;
     }
 
     planet.Draw(shader);
+    
+
+    // Uranus special (rocket)
+    if (name == "Uranus") {
+        if (rocketModel) {
+            draw_rocket(
+                model,                  // position de la Terre
+                *rocketModel,
+                shader,
+                rocketHeight,                // hauteur
+                .1f,               // taille
+                glm::radians(180.0f)  // rotation
+            );
+
+        }
+        
+    }
+
 }
 
 // Lens flare ray test
@@ -286,8 +444,15 @@ static bool isIntersecting(glm::vec3 rayOrigin, glm::vec3 rayDirection,
 
 // Main loop entry
 
+
+
 int system() {
     bool move = true;
+
+
+
+
+    std::cout << "test planete";
 
     if (!glfwInit()) {
         std::cerr << "Failed to init GLFW\n";
@@ -320,6 +485,16 @@ int system() {
         std::cerr << "Failed to initialize GLEW\n";
         return EXIT_FAILURE;
     }
+
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
 
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     glEnable(GL_DEPTH_TEST);
@@ -356,6 +531,11 @@ int system() {
     Model uranusModel("resources/models/uranus/uranus.obj");
     Model neptuneModel("resources/models/neptune/neptune.obj");
     Model moonModel("resources/models/moon/moon.obj");
+    Model rocketModel("resources/models/rocket/space_rocket.obj");
+
+
+    
+
 
     // Spheres for ray cast (lens flare)
     Sphere sunSphere = createSphere(sunRadius, lightPos);
@@ -367,6 +547,7 @@ int system() {
     Sphere saturnSphere = createSphere(saturnRadius, glm::vec3(0.0f, 0.0f, 9.54f * AU));
     Sphere uranusSphere = createSphere(uranusRadius, glm::vec3(0.0f, 0.0f, 14.22f * AU));
     Sphere neptuneSphere = createSphere(neptuneRadius, glm::vec3(0.0f, 0.0f, 23.06f * AU));
+
 
     unsigned int earthNightTextureID = TextureFromFile("resources/models/earth/earthnight.jpg", ".");
     unsigned int earthCloudTextureID = TextureFromFile("resources/models/earth/earthclouds.jpg", ".");
@@ -463,6 +644,11 @@ int system() {
     blurShader.use();
     blurShader.setInt("image", 0);
 
+
+
+
+    
+
     // Framebuffer (scene + bright)
     unsigned int framebuffer = 0;
     glGenFramebuffers(1, &framebuffer);
@@ -529,6 +715,8 @@ int system() {
     GLuint i = 0;
 
     while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+
         GLfloat currentFrame = (GLfloat)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         fpsDeltaTime = currentFrame - lastTime;
@@ -550,6 +738,10 @@ int system() {
         // Inputs
         doMovement();
 
+
+        
+
+
         i += (GLuint)std::max(0, speedModifier);
         if (i == UINT_MAX) i = 0;
 
@@ -561,6 +753,23 @@ int system() {
 
         glClearColor(0.00f, 0.00f, 0.00f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+
+        //gui
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // -------------------------
+        // Example GUI window
+        // -------------------------
+
+        if (!cameraType.empty()) {
+            RenderGuiOn(cameraType);
+        }
+        else(RenderGui());
+ 
+        
 
         // Camera (FREE or FOCUS) LYNDA
         glm::mat4 view(1.0f);
@@ -604,7 +813,7 @@ int system() {
 
         draw_planet(move, i, view, projection, 1.0f, 1.4f, 29.8f * outerSpeed, 1574.0f * speed, 0.0f,
             "Earth", earthShader, pathShader, earthModel, &earthSphere,
-            &moonModel, &shader, earthNightTextureID, earthCloudTextureID);
+            &moonModel, &shader, earthNightTextureID, earthCloudTextureID );
 
         draw_planet(move, i, view, projection, 1.52f, 1.0f, 24.1f * outerSpeed, 866.0f * speed, 0.0f,
             "Mars", shader, pathShader, marsModel, &marsSphere);
@@ -615,11 +824,21 @@ int system() {
         draw_planet(move, i, view, projection, 9.54f, 1.0f, 9.7f * outerSpeed, 36840.0f * speed, 90.0f,
             "Saturn", shader, pathShader, saturnModel, &saturnSphere);
 
-        draw_planet(move, i, view, projection, 14.22f, 1.0f, 6.8f * outerSpeed, 14797.0f * speed, 160.0f,
-            "Uranus", shader, pathShader, uranusModel, &uranusSphere);
+        draw_planet(
+            move, i, view, projection,
+            14.22f, 1.0f, 6.8f * outerSpeed, 14797.0f * speed, 160.0f,
+            "Uranus",
+            shader, pathShader, uranusModel,
+            &uranusSphere,        // sphere
+            nullptr, nullptr,     // moon, moonShader
+            0, 0,                 // nightTextureID, cloudTextureID
+            &rocketModel          // rocketModel
+        );
+
 
         draw_planet(move, i, view, projection, 23.06f, 1.0f, 5.4f * outerSpeed, 9719.0f * speed, 130.0f,
             "Neptune", shader, pathShader, neptuneModel, &neptuneSphere);
+
 
         // SUN
         lampShader.use();
@@ -754,8 +973,12 @@ int system() {
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glBindVertexArray(0);
 
+        
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
-        glfwPollEvents();
+
     }
 
     glfwTerminate();
@@ -912,3 +1135,8 @@ static unsigned int loadCubemap(const std::vector<std::string>& faces) {
 
     return textureID;
 }
+
+
+
+
+
