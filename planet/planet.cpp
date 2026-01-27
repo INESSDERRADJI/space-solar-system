@@ -11,9 +11,9 @@
 // Lib includes
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <ImGui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
 
 
 
@@ -219,24 +219,40 @@ static int planetRadius(const std::string& name) {
 //GUI
 
 void RenderGui() {
-    bool show_demo_window = true;
 
-    ImGui::SetNextWindowPos(ImVec2(0, 0));          // X, Y
-    ImGui::SetNextWindowSize(ImVec2(250, 200));       // Largeur, Hauteur
-
+    ImGui::SetNextWindowPos(ImVec2(0, 450));
+    ImGui::SetNextWindowSize(ImVec2(400, 500));
 
     ImGui::Begin("Command Panel");
+    ImGui::SetWindowFontScale(1.4f);
+
+    ImGui::Text("Controls:");
+    ImGui::Separator();
+
+    ImGui::Text("0 : Overview");
     for (int i = 0; i < planets.size(); i++) {
-        ImGui::Text("Press %d to focus on %s", i + 1, planets[i].c_str());
+        ImGui::Text("%d : Focus on %s", i + 1, planets[i].c_str());
     }
 
-    ImGui::Text(" position x : %.2f ,\n y : %.2f,\n z : %.2f ", camera.Position.x, camera.Position.y , camera.Position.z);
+    ImGui::Separator();
+
+    ImGui::Text("P : Lock / unlock cursor");
+    ImGui::Text("T : Toggle orbit trajectories");
+    ImGui::Text("B : Toggle bloom");
+    ImGui::Text("F : Toggle lens flare");
+    ImGui::Text("/ : Decrease / increase blur passes");
+    ImGui::Text("ESC : Quit");
+
+    ImGui::Separator();
+
+    ImGui::Text("Camera position:");
+    ImGui::Text("X : %.2f", camera.Position.x);
+    ImGui::Text("Y : %.2f", camera.Position.y);
+    ImGui::Text("Z : %.2f", camera.Position.z);
 
     ImGui::End();
-
-
-
 }
+
 
 void RenderGuiOn(const std::string& s) {
 

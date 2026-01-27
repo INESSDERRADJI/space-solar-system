@@ -23,6 +23,13 @@ add_executable(solarsystem
 
   libs/stb_image.cpp
   libs/SOIL2/etc1_utils.c
+
+  libs/imgui/imgui.cpp
+  libs/imgui/imgui_draw.cpp
+  libs/imgui/imgui_tables.cpp
+  libs/imgui/imgui_widgets.cpp
+  libs/imgui/backends/imgui_impl_glfw.cpp
+  libs/imgui/backends/imgui_impl_opengl3.cpp
 )
 
 # forcer le .c en C (safe)
@@ -32,6 +39,7 @@ target_include_directories(solarsystem PRIVATE
   ${CMAKE_SOURCE_DIR}/planet
   ${CMAKE_SOURCE_DIR}/libs
   ${CMAKE_SOURCE_DIR}/libs/SOIL2
+  ${CMAKE_SOURCE_DIR}/libs/imgui
 )
 
 target_link_libraries(solarsystem PRIVATE
