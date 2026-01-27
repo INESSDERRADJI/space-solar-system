@@ -35,10 +35,19 @@ void main() {
     vec3 diffuse = light.diffuse * diff * vec3(texture(texture_diffuse, TexCoords));
     
     // Specular
-    vec3 viewDir = normalize(viewPos - FragPos);
-    vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0f);
-    vec3 specular = light.specular * spec * vec3(texture( texture_specular, TexCoords));
+vec3 viewDir = normalize(viewPos - FragPos);
+vec3 reflectDir = reflect(-lightDir, norm);
+
+// Shininess: plus petit = highlight plus large, plus grand = plus serré
+float shininess = 64.0;
+float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+
+// si texture_specular est noire/non bind, ça annule tout.
+// Donc on mélange: 80% constant + 20% texture
+vec3 specMap = vec3(texture(texture_specular, TexCoords));
+vec3 specColor = mix(vec3(1.0), specMap, 0.2);
+
+vec3 specular = light.specular * spec * specColor * 2.5;
     
     float distance    = length(light.position - FragPos);
     float attenuation = 1.0f / (light.constant + light.linear * distance + light.quadratic * (distance * distance));

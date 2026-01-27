@@ -94,6 +94,12 @@ static const float trackpadLookSensitivity = 0.45f;
 static const float trackpadMoveSpeed = 80.0f;
 static const float trackpadOrbitSensitivity = 6.0f;
 
+// global view solar system  
+static const float GLOBAL_TOP_HEIGHT = 7000.0f;
+
+static const glm::vec3 GLOBAL_OVERVIEW_POS = glm::vec3(-3500.0f, 800.0f, 3500.0f);
+
+
 
 //Sensitivity for focus orbit
 static const float focusMouseSensitivity = 0.12f;
@@ -200,8 +206,6 @@ static void setFocus(const std::string& name) {
 
     focusYaw = 45.0f;
     focusPitch = 15.0f;
-    focusDistance = focusDistanceFor(name);
-    std::cout << "[FOCUS] " << name << " focusDistance=" << focusDistance << std::endl;
 
     firstMouse = true;
 
@@ -369,6 +373,8 @@ int system() {
     Model uranusModel("resources/models/uranus/uranus.obj");
     Model neptuneModel("resources/models/neptune/neptune.obj");
     Model moonModel("resources/models/moon/moon.obj");
+    Model rocketModel("resources/models/rocket/rocket.obj");
+
 
     // Spheres for ray cast (lens flare)
     Sphere sunSphere = createSphere(sunRadius, lightPos);
@@ -678,6 +684,15 @@ int system() {
             glDeleteBuffers(1, &orbitVBO);
             glDeleteVertexArrays(1, &orbitVAO);
         }
+        glm::vec3 earthPos = planetPosFor("Earth", move, i);
+        glm::mat4 rocketMat = glm::mat4(1.0f);
+        rocketMat = glm::translate(rocketMat, earthPos + glm::vec3(4.0f, 0.0f, 0.0f));
+        rocketMat = glm::scale(rocketMat, glm::vec3(0.05f));
+        rocketMat = glm::rotate(rocketMat, glm::radians(90.0f), glm::vec3(1, 0, 0));
+
+        shader.use();
+        shader.setMat4("model", rocketMat);
+        rocketModel.Draw(shader);
 
         // SKYBOX
         glDepthFunc(GL_LEQUAL);
@@ -773,23 +788,8 @@ int system() {
     return 0;
 }
 
-
 // Movement + toggles
 static void doMovement() {
-
-    // Déplacement WASD uniquement en free cam
-    if (cameraType.empty()) {
-        if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])    camera.ProcessKeyboard(FORWARD, deltaTime);
-        if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])  camera.ProcessKeyboard(BACKWARD, deltaTime);
-        if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])  camera.ProcessKeyboard(LEFT, deltaTime);
-        if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT]) camera.ProcessKeyboard(RIGHT, deltaTime);
-    }
-    else {
-        if (keys[GLFW_KEY_W] || keys[GLFW_KEY_S] || keys[GLFW_KEY_A] || keys[GLFW_KEY_D]) {
-           
-            // std::cout << "Press 0 to return to free camera\n";
-        }
-    }
 
     double currentTime = glfwGetTime();
     auto canToggle = [&]() {
@@ -798,7 +798,33 @@ static void doMovement() {
             return true;
         }
         return false;
-        };
+    };
+
+    float dist = glm::length(camera.Position - lightPos); 
+    dist = glm::clamp(dist, 50.0f, 20000.0f);
+
+    float moveSpeed = dist * 0.2f;
+    float velocity = moveSpeed * deltaTime;
+
+    // forward
+    if (keys[GLFW_KEY_W]) {
+        camera.Position += camera.Front * velocity;
+    }
+
+    // backward
+    if (keys[GLFW_KEY_S]) {
+        camera.Position -= camera.Front * velocity;
+    }
+
+    // left
+    if (keys[GLFW_KEY_A]) {
+        camera.Position -= camera.Right * velocity;
+    }
+
+    // right
+    if (keys[GLFW_KEY_D]) {
+        camera.Position += camera.Right * velocity;
+    }
 
     // P lock/unlock cursor
     if (keys[GLFW_KEY_P] && canToggle()) { menuActive = !menuActive; firstMouse = true; }
@@ -815,6 +841,57 @@ static void doMovement() {
     // [ / ] blur passes
     if (keys[GLFW_KEY_LEFT_BRACKET] && canToggle())  blurPasses = std::max(1, blurPasses - 1);
     if (keys[GLFW_KEY_RIGHT_BRACKET] && canToggle()) blurPasses = std::min(10, blurPasses + 1);
+
+}
+
+static void setGlobalView()
+{
+    cameraType.clear();
+    menuActive = false;
+
+    camera.Position = lightPos + glm::vec3(0.0f, GLOBAL_TOP_HEIGHT, 0.0f);
+
+    glm::vec3 dir = glm::normalize(lightPos - camera.Position);
+
+    float pitch = glm::degrees(std::asin(dir.y));
+    float yaw = glm::degrees(std::atan2(dir.z, dir.x));
+
+    camera.Pitch = pitch;
+    camera.Yaw = yaw;
+
+    camera.ProcessMouseMovement(0.0f, 0.0f);
+
+    camera.Zoom = 45.0f;
+
+    firstMouse = true;
+    lastX = SCREEN_WIDTH * 0.5f;
+    lastY = SCREEN_HEIGHT * 0.5f;
+    glfwSetCursorPos(window, lastX, lastY);
+}
+
+static void setGlobalOverview()
+{
+    cameraType.clear();
+    menuActive = false;
+
+    camera.Position = GLOBAL_OVERVIEW_POS;
+
+    glm::vec3 dir = glm::normalize(lightPos - camera.Position);
+
+    float pitch = glm::degrees(std::asin(dir.y));
+    float yaw = glm::degrees(std::atan2(dir.z, dir.x));
+
+    camera.Pitch = pitch;
+    camera.Yaw = yaw;
+
+    camera.ProcessMouseMovement(0.0f, 0.0f);
+
+    camera.Zoom = 45.0f;
+
+    firstMouse = true;
+    lastX = SCREEN_WIDTH * 0.5f;
+    lastY = SCREEN_HEIGHT * 0.5f;
+    glfwSetCursorPos(window, lastX, lastY);
 }
 
 
@@ -843,9 +920,12 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         if (key == GLFW_KEY_6) { setFocus("Saturn");  return; }
         if (key == GLFW_KEY_7) { setFocus("Uranus");  return; }
         if (key == GLFW_KEY_8) { setFocus("Neptune"); return; }
-        if (key == GLFW_KEY_0) { clearFocus();        return; }
+        if (key == GLFW_KEY_0) { setGlobalView(); return; }
 
-        if (key == GLFW_KEY_SPACE && !cameraType.empty()) { clearFocus(); return; }
+        if (key == GLFW_KEY_SPACE) {
+            setGlobalOverview();
+            return;
+        }
     }
 
 }
@@ -882,12 +962,12 @@ static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
     if (menuActive) return;
 
-    const bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+    const bool alt  = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
         glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
 
     if (cameraType.empty())
     {
-        if (shift)
+        if (alt)
         {
             float forward = -(float)yoffset * trackpadMoveSpeed;
             float strafe = (float)xoffset * trackpadMoveSpeed;
@@ -902,7 +982,7 @@ static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
         return;
     }
 
-    if (shift)
+    if (alt)
     {
         focusYaw += (float)xoffset * trackpadOrbitSensitivity;
         focusPitch += (float)-yoffset * trackpadOrbitSensitivity;
