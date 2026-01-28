@@ -4,9 +4,11 @@ project(SolarSystem LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+#  OpenGL 
 find_package(OpenGL REQUIRED)
 
-# vcpkg packages (OK seulement si toolchain vcpkg est utilisé)
+# vcpkg packages 
+# (OK seulement si le toolchain vcpkg est utilisé)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(GLEW CONFIG REQUIRED)
@@ -50,7 +52,7 @@ target_link_libraries(solarsystem PRIVATE
   assimp::assimp
 )
 
-# Copier resources/ à côté du .exe
+#  Copy resources 
 add_custom_command(TARGET solarsystem POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           ${CMAKE_SOURCE_DIR}/resources
