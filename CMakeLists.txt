@@ -6,8 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenGL REQUIRED)
 
-# vcpkg packages (OK seulement si toolchain vcpkg est utilisé)
-find_package(glfw3 CONFIG REQUIRED)
+# vcpkg packages (OK seulement si toolchain vcpkg est utilisé)find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(GLEW CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)

@@ -189,9 +189,8 @@ static void setFocus(const std::string& name) {
     focusYaw = 45.0f;
     focusPitch = 15.0f;
     focusDistance = focusDistanceFor(name);
-
+    focusDistance = glm::clamp(focusDistance, 5.0f, 5000.0f);
     firstMouse = true;
-
     menuActive = false;
 }
 
@@ -356,6 +355,76 @@ int system() {
     Model uranusModel("resources/models/uranus/uranus.obj");
     Model neptuneModel("resources/models/neptune/neptune.obj");
     Model moonModel("resources/models/moon/moon.obj");
+    Model asteroidModel("resources/models/asteroid/rock.obj");
+
+    // ============================
+    // GPU INSTANCING - ASTEROIDS
+    // ============================
+    unsigned int amount = 10000;
+    glm::mat4* modelMatrices = new glm::mat4[amount];
+
+    srand(static_cast<unsigned int>(glfwGetTime())); // initialize random seed
+    float asteroidRadius = 3.0f * AU;
+    float offset = 0.2f * AU;
+
+    for (unsigned int i = 0; i < amount; i++) {
+        glm::mat4 model = glm::mat4(1.0f);
+
+        // 1) translation
+        float angle = (float)i / (float)amount * 360.0f;
+
+        float displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;
+        float x = sin(angle) * asteroidRadius + displacement;
+
+        displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;
+        float y = displacement * 0.4f;
+
+        displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;
+        float z = cos(angle) * asteroidRadius + displacement;
+
+        model = glm::translate(model, glm::vec3(x, y, z));
+
+        // 2) scale
+        float scaleAst = static_cast<float>((rand() % 20) / 50.0 + 0.05);
+        model = glm::scale(model, glm::vec3(scaleAst));
+
+        // 3) rotation
+        float rotAngle = static_cast<float>((rand() % 360));
+        model = glm::rotate(model, rotAngle, glm::vec3(0.4f, 0.6f, 0.8f));
+
+        modelMatrices[i] = model;
+    }
+
+    // instance buffer
+    unsigned int buffer;
+    glGenBuffers(1, &buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    glBufferData(GL_ARRAY_BUFFER, amount * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
+
+    // set transformation matrices as an instance vertex attribute
+    for (unsigned int i = 0; i < asteroidModel.meshes.size(); i++) {
+        unsigned int VAO = asteroidModel.meshes[i].VAO;
+        glBindVertexArray(VAO);
+
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+
+        glEnableVertexAttribArray(6);
+        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+
+        glVertexAttribDivisor(3, 1);
+        glVertexAttribDivisor(4, 1);
+        glVertexAttribDivisor(5, 1);
+        glVertexAttribDivisor(6, 1);
+
+        glBindVertexArray(0);
+    }
 
     // Spheres for ray cast (lens flare)
     Sphere sunSphere = createSphere(sunRadius, lightPos);
@@ -667,6 +736,38 @@ int system() {
             glDeleteBuffers(1, &orbitVBO);
             glDeleteVertexArrays(1, &orbitVAO);
         }
+
+
+        // ============================
+        // DRAW ASTEROIDS (INSTANCED)
+        // ============================
+        glm::mat4 modelA = glm::mat4(1.0f);
+
+        asteroidShader.use();
+        asteroidShader.setMat4("projection", projection);
+        asteroidShader.setMat4("view", view);
+
+        // (on garde un model identity : les positions viennent de aInstanceMatrix)
+        asteroidShader.setMat4("model", modelA);
+
+        asteroidShader.setInt("texture_diffuse", 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, asteroidModel.textures_loaded[0].id);
+
+        for (unsigned int m = 0; m < asteroidModel.meshes.size(); m++) {
+            glBindVertexArray(asteroidModel.meshes[m].VAO);
+            glDrawElementsInstanced(
+                GL_TRIANGLES,
+                static_cast<unsigned int>(asteroidModel.meshes[m].indices.size()),
+                GL_UNSIGNED_INT,
+                0,
+                amount
+            );
+            glBindVertexArray(0);
+        }
+
+
+
 
         // SKYBOX
         glDepthFunc(GL_LEQUAL);
