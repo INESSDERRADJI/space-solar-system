@@ -208,6 +208,8 @@ static float focusDistanceFor(const std::string& name) {
 }
 
 
+// pour les infos panel
+
 static float rotationPeriod(const std::string& name) {
     if (name == "Mercury") return 1407.6f;
     if (name == "Venus")   return 5832.5f;
@@ -260,6 +262,77 @@ static void setFocus(const std::string& name) {
     menuActive = false;
 }
 
+bool rocketDirection = true;
+static void draw_rocket(Model& rocketModel, Shader& shader, float speed, bool& direction, bool move, GLuint i) {
+    glm::vec3 earthPos = planetPosFor("Earth", move, i);
+
+
+
+    static float minOffset = 2.f;
+    static float rocketOffset = 2.f;      // distance depuis la Terre
+    static float maxDistance = 4.5f;       // distance max pour l’aller-retour
+    static float rotation2 = -90.0f;
+    static float rotationSpeed = 0.5f;
+    static bool rotation = false;
+
+
+    // Mise à jour de l’offset selon la direction
+
+    speed = 0.001;
+    
+
+
+    if (direction)
+        rocketOffset += speed;
+    else
+        rocketOffset -= speed;
+
+    // Inversion de la direction si on atteint les limites
+    if (rocketOffset > maxDistance) {
+        direction = false;
+        rotation = true;
+    }
+    if (rocketOffset < minOffset) {
+        direction = true;
+        rotation = true;
+    }
+
+
+
+    if (rotation) {
+
+        if (direction) {
+            rotation2 -= rotationSpeed;
+        }
+        else {
+            rotation2 += rotationSpeed;
+        }
+        if (rotation2 > 90 || rotation2 < -90) {
+            rotation = false;
+        }
+    }
+
+
+
+    glm::mat4 rocketMat = glm::mat4(1.0f);
+    
+    // Translation par rapport à la Terre
+    rocketMat = glm::translate(glm::mat4(1), earthPos + glm::vec3(rocketOffset, .0f, .0f));
+
+    // Demi-tour quand elle change de direction
+    rocketMat = glm::rotate(rocketMat, glm::radians(rotation2), glm::vec3(0, 0, 1));
+
+    // Échelle
+    rocketMat = glm::scale(rocketMat, glm::vec3(0.03f));
+
+    // Application au shader et dessin
+    shader.use();
+    shader.setMat4("model", rocketMat);
+    rocketModel.Draw(shader);
+}
+
+
+
 static void clearFocus() {
     cameraType.clear();
     if (hasFreeCamBackup) camera.Position = freeCamPosBackup;
@@ -270,7 +343,7 @@ static void clearFocus() {
 static void draw_moon(const glm::vec3& pos, Model& moon, float moonOrbitRadius, Shader& shader) {
     GLfloat radius = AU * moonOrbitRadius;
     glm::mat4 moonModel = glm::mat4(1.0f);
-    moonModel = glm::translate(moonModel, pos + glm::vec3(radius, 0.0f, radius));
+    moonModel = glm::translate(moonModel, pos + glm::vec3(radius, 0.0f, 0));
     moonModel = glm::scale(moonModel, glm::vec3(0.6f, 0.6f, 0.6f));
 
     shader.use();
@@ -287,7 +360,9 @@ static void draw_planet(
     Shader& shader, Shader& pathShader, Model& planet,
     Sphere* sphere = nullptr,
     Model* moon = nullptr, Shader* moonShader = nullptr,
-    unsigned int nightTextureID = 0, unsigned int cloudTextureID = 0
+    unsigned int nightTextureID = 0, unsigned int cloudTextureID = 0,
+    Model* rocket = nullptr,
+    Shader* rocketShader = nullptr
 ) {
     (void)view; (void)projection; (void)pathShader;
 
@@ -320,6 +395,7 @@ static void draw_planet(
     if (name == "Earth") {
         planet.Draw2(shader, "night", nightTextureID, "cloud", cloudTextureID, glfwGetTime());
         if (moon && moonShader) draw_moon(pos, *moon, 0.035f, *moonShader);
+        if (rocket && rocketShader) draw_rocket(*rocket, *rocketShader, 0.001, rocketDirection, move,i);
         return;
     }
 
@@ -528,7 +604,7 @@ int system() {
     earthShader.setFloat("light.linear", 0.0000002f);
     earthShader.setFloat("light.quadratic", 0.0000006f);
 
-    // EN: Sun glow intensity 
+    // Sun glow intensity 
     lampShader.use();
     lampShader.setFloat("sunIntensity", 120.0f); // si plus 200.5f
 
@@ -752,7 +828,7 @@ int system() {
 
         draw_planet(move, i, view, projection, 1.0f, 1.4f, 29.8f * outerSpeed, 1574.0f * speed, 0.0f,
             "Earth", earthShader, pathShader, earthModel, &earthSphere,
-            &moonModel, &shader, earthNightTextureID, earthCloudTextureID);
+            &moonModel, &shader, earthNightTextureID, earthCloudTextureID, &rocketModel, &shader);
 
         draw_planet(move, i, view, projection, 1.52f, 1.0f, 24.1f * outerSpeed, 866.0f * speed, 0.0f,
             "Mars", shader, pathShader, marsModel, &marsSphere);
@@ -815,15 +891,8 @@ int system() {
             glDeleteBuffers(1, &orbitVBO);
             glDeleteVertexArrays(1, &orbitVAO);
         }
-        glm::vec3 earthPos = planetPosFor("Earth", move, i);
-        glm::mat4 rocketMat = glm::mat4(1.0f);
-        rocketMat = glm::translate(rocketMat, earthPos + glm::vec3(4.0f, 0.0f, 0.0f));
-        rocketMat = glm::scale(rocketMat, glm::vec3(0.05f));
-        rocketMat = glm::rotate(rocketMat, glm::radians(90.0f), glm::vec3(1, 0, 0));
 
-        shader.use();
-        shader.setMat4("model", rocketMat);
-        rocketModel.Draw(shader);
+
 
         // SKYBOX
         glDepthFunc(GL_LEQUAL);
