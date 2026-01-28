@@ -11,23 +11,31 @@
 // Lib includes
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_opengl3.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
 
 // local includes
 #include "camera.h"
 #include "model.h"
 #include "shader.h"
 
-// For stbi_load used in loadCubemap (stb_image.h)
+
 #include "stb_image.h"
 
-static const GLint WIDTH = 1280, HEIGHT = 720;
+static const GLint WIDTH = 2560, HEIGHT = 1440;
 static const double PI = 3.141592653589793238463;
 
 static int SCREEN_WIDTH = WIDTH, SCREEN_HEIGHT = HEIGHT;
 static GLFWwindow* window = nullptr;
+
+//list planets
+std::vector<std::string> planets = { "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune" };
+
+
 
 // Function prototypes
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -45,13 +53,13 @@ static bool keys[1024]{};
 static GLfloat lastX = 400.0f, lastY = 300.0f;
 static bool firstMouse = true;
 
-//FR: zFar grand pour voir tout le systËme
+//FR: zFar grand pour voir tout le syst√®me
 static float zNear = 0.1f, zFar = 50000.0f;
 
-// "" = free cam sinon planËte focus
+// "" = free cam sinon plan√®te focus
 static std::string cameraType = "";
 
-// Cursor lock (sans ImGui) SIMON
+// menu panel 
 static bool menuActive = false;
 
 // Timing
@@ -79,17 +87,27 @@ static const double cooldownDuration = 0.25;
 static double lastKeyPressTime = 0.0;
 
 
-// Focus (planet camera) LYNDA
-// On mÈmorise la position free cam pour la restaurer avec 0
+// On m√©morise la position free cam pour la restaurer avec 0
 static glm::vec3 freeCamPosBackup(0.0f);
 static bool hasFreeCamBackup = false;
 
-//Angles orbitaux autour de la planËte (en degrÈs)
+//Angles orbitaux autour de la plan√®te (en degr√©s)
 static float focusYaw = 45.0f;
 static float focusPitch = 15.0f;
 
-//Distance ‡ la planËte
+//Distance √† la plan√®te
 static float focusDistance = 12.0f;
+
+static const float trackpadLookSensitivity = 0.45f;
+static const float trackpadMoveSpeed = 80.0f;
+static const float trackpadOrbitSensitivity = 6.0f;
+
+// global view solar system  
+static const float GLOBAL_TOP_HEIGHT = 7000.0f;
+
+static const glm::vec3 GLOBAL_OVERVIEW_POS = glm::vec3(-3500.0f, 800.0f, 3500.0f);
+
+
 
 //Sensitivity for focus orbit
 static const float focusMouseSensitivity = 0.12f;
@@ -170,10 +188,57 @@ static float visualRadiusFor(const std::string& name) {
 }
 
 static float focusDistanceFor(const std::string& name) {
-    
-    // Assez proche pour que la planËte soit grosse, sans Ítre dedans
-    float r = visualRadiusFor(name);
-    return glm::clamp(r * 3.0f + 6.0f, 8.0f, 120.0f);
+    if (name == "Mercury") return 2.0f;
+
+    if (name == "Venus")   return 6.0f;
+    if (name == "Earth")   return 6.0f;
+    if (name == "Mars")    return 3.0f;
+
+    if (name == "Jupiter") return 80.0f;
+    if (name == "Saturn")  return 85.0f;
+
+    if (name == "Uranus")  return 40.0f;
+    if (name == "Neptune") return 30.0f;
+
+    return 150.0f;
+}
+
+
+// pour les infos panel
+
+static float rotationPeriod(const std::string& name) {
+    if (name == "Mercury") return 1407.6f;
+    if (name == "Venus")   return 5832.5f;
+    if (name == "Earth")   return 23.9f;
+    if (name == "Mars")    return 24.6f;
+    if (name == "Jupiter") return 9.9f;
+    if (name == "Saturn")  return 10.55f;
+    if (name == "Uranus")  return 17.2;
+    if (name == "Neptune") return 16.1f;
+
+}
+
+static float orbitalPeriod(const std::string& name) {
+    if (name == "Mercury") return 88.f;
+    if (name == "Venus")   return 225.f;
+    if (name == "Earth")   return 365.2f;
+    if (name == "Mars")    return 687.f;
+    if (name == "Jupiter") return 4332.6f;
+    if (name == "Saturn")  return 10759.f;
+    if (name == "Uranus")  return 30688.5f;
+    if (name == "Neptune") return 60182.f;
+
+}
+
+static int planetRadius(const std::string& name) {
+    if (name == "Mercury") return 2439;
+    if (name == "Venus")   return 6052;
+    if (name == "Earth")   return 6371;
+    if (name == "Mars")    return 3389;
+    if (name == "Jupiter") return 69911;
+    if (name == "Saturn")  return 58262;
+    if (name == "Uranus")  return 25362;
+    if (name == "Neptune") return 24622;
 }
 
 static void setFocus(const std::string& name) {
@@ -185,7 +250,6 @@ static void setFocus(const std::string& name) {
 
     cameraType = name;
 
-    // Reset orbit angles so we start with a nice view 
     focusYaw = 45.0f;
     focusPitch = 15.0f;
     focusDistance = focusDistanceFor(name);
@@ -193,6 +257,77 @@ static void setFocus(const std::string& name) {
     firstMouse = true;
     menuActive = false;
 }
+
+bool rocketDirection = true;
+static void draw_rocket(Model& rocketModel, Shader& shader, float speed, bool& direction, bool move, GLuint i) {
+    glm::vec3 earthPos = planetPosFor("Earth", move, i);
+
+
+
+    static float minOffset = 2.f;           // distance depuis la Terre
+    static float rocketOffset = 2.f;      
+    static float maxDistance = 4.5f;       // distance max pour l‚Äôaller-retour
+    static float rotation2 = -90.0f;
+    static float rotationSpeed = 0.5f;
+    static bool rotation = false;
+
+
+    // Mise √† jour de l‚Äôoffset selon la direction
+
+    speed = 0.001;
+    
+
+
+    if (direction)
+        rocketOffset += speed;
+    else
+        rocketOffset -= speed;
+
+    // Inversion de la direction si on atteint les limites
+    if (rocketOffset > maxDistance) {
+        direction = false;
+        rotation = true;
+    }
+    if (rocketOffset < minOffset) {
+        direction = true;
+        rotation = true;
+    }
+
+
+
+    if (rotation) {
+
+        if (direction) {
+            rotation2 -= rotationSpeed;
+        }
+        else {
+            rotation2 += rotationSpeed;
+        }
+        if (rotation2 > 90 || rotation2 < -90) {
+            rotation = false;
+        }
+    }
+
+
+
+    glm::mat4 rocketMat = glm::mat4(1.0f);
+    
+    // Translation par rapport √† la Terre
+    rocketMat = glm::translate(glm::mat4(1), earthPos + glm::vec3(rocketOffset, .0f, .0f));
+
+    // Demi-tour quand elle change de direction
+    rocketMat = glm::rotate(rocketMat, glm::radians(rotation2), glm::vec3(0, 0, 1));
+
+    // √âchelle
+    rocketMat = glm::scale(rocketMat, glm::vec3(0.03f));
+
+    // Application au shader et dessin
+    shader.use();
+    shader.setMat4("model", rocketMat);
+    rocketModel.Draw(shader);
+}
+
+
 
 static void clearFocus() {
     cameraType.clear();
@@ -204,7 +339,7 @@ static void clearFocus() {
 static void draw_moon(const glm::vec3& pos, Model& moon, float moonOrbitRadius, Shader& shader) {
     GLfloat radius = AU * moonOrbitRadius;
     glm::mat4 moonModel = glm::mat4(1.0f);
-    moonModel = glm::translate(moonModel, pos + glm::vec3(radius, 0.0f, radius));
+    moonModel = glm::translate(moonModel, pos + glm::vec3(radius, 0.0f, 0));
     moonModel = glm::scale(moonModel, glm::vec3(0.6f, 0.6f, 0.6f));
 
     shader.use();
@@ -221,7 +356,9 @@ static void draw_planet(
     Shader& shader, Shader& pathShader, Model& planet,
     Sphere* sphere = nullptr,
     Model* moon = nullptr, Shader* moonShader = nullptr,
-    unsigned int nightTextureID = 0, unsigned int cloudTextureID = 0
+    unsigned int nightTextureID = 0, unsigned int cloudTextureID = 0,
+    Model* rocket = nullptr,
+    Shader* rocketShader = nullptr
 ) {
     (void)view; (void)projection; (void)pathShader;
 
@@ -254,11 +391,78 @@ static void draw_planet(
     if (name == "Earth") {
         planet.Draw2(shader, "night", nightTextureID, "cloud", cloudTextureID, glfwGetTime());
         if (moon && moonShader) draw_moon(pos, *moon, 0.035f, *moonShader);
+        if (rocket && rocketShader) draw_rocket(*rocket, *rocketShader, 0.001, rocketDirection, move,i);
         return;
     }
 
     planet.Draw(shader);
 }
+
+
+bool showGUI = true;
+
+void RenderGui() {
+
+    if (showGUI == false) return;
+
+    ImGui::SetNextWindowPos(ImVec2(0, 300));
+    ImGui::SetNextWindowSize(ImVec2(400, 500));
+
+    ImGui::Begin("Command Panel");
+    ImGui::SetWindowFontScale(1.2f);
+
+    ImGui::Text("Controls:");
+    ImGui::Separator();
+
+    ImGui::Text("0 / SPACEBAR : Overview");
+    for (int i = 0; i < planets.size(); i++) {
+        ImGui::Text("%d : Focus on %s", i + 1, planets[i].c_str());
+    }
+
+    ImGui::Separator();
+
+    ImGui::Text("P : Lock / unlock cursor");
+    ImGui::Text("T : Toggle orbit trajectories");
+    ImGui::Text("B : Toggle bloom");
+    ImGui::Text("F : Toggle lens flare"); 
+
+    ImGui::Separator();
+
+    ImGui::Text("Z : up");
+    ImGui::Text("S : down");
+    ImGui::Text("D : right");
+    ImGui::Text("Q : left");
+
+    ImGui::Text("Camera position:");
+    ImGui::Text("X : %.2f", camera.Position.x);
+    ImGui::Text("Y : %.2f", camera.Position.y);
+    ImGui::Text("Z : %.2f", camera.Position.z);
+
+    ImGui::Separator();
+
+    ImGui::Text("ENTER : close / open the panel");
+    ImGui::Text("ESC : Quit");
+
+    ImGui::End();
+}
+
+
+void RenderGuiOn(const std::string& s) {
+    if (showGUI == false) return;
+
+    ImGui::SetNextWindowPos(ImVec2(0, 0));          // X, Y
+    ImGui::SetNextWindowSize(ImVec2(250, 200));       // Largeur, Hauteur
+
+
+    ImGui::Begin(s.c_str());
+
+    ImGui::Text("Planet Radius : %d kilometers", planetRadius(s));
+    ImGui::Text("Rotation Period : %.2f hours", rotationPeriod(s));
+    ImGui::Text("Orbital Period : %.2f days", orbitalPeriod(s));
+
+    ImGui::End();
+}
+
 
 // Lens flare ray test
 static bool isIntersecting(glm::vec3 rayOrigin, glm::vec3 rayDirection,
@@ -309,6 +513,14 @@ int system() {
     glfwMakeContextCurrent(window);
     glfwGetFramebufferSize(window, &SCREEN_WIDTH, &SCREEN_HEIGHT);
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
     glfwSetKeyCallback(window, KeyCallback);
     glfwSetCursorPosCallback(window, MouseCallback);
     glfwSetScrollCallback(window, scroll_callback);
@@ -333,6 +545,7 @@ int system() {
     Shader lampShader("resources/shaders/lamp.vs", "resources/shaders/lamp.frag");
     Shader screenShader("resources/shaders/framebuffer.vs", "resources/shaders/framebuffer.frag");
     Shader blurShader("resources/shaders/blur.vs", "resources/shaders/blur.frag");
+    Shader asteroidShader("resources/shaders/asteroids.vs", "resources/shaders/modelLoading.frag");
 
     float sunRadius = 50.0f;
     float earthRadius = 1.5f;
@@ -355,6 +568,7 @@ int system() {
     Model uranusModel("resources/models/uranus/uranus.obj");
     Model neptuneModel("resources/models/neptune/neptune.obj");
     Model moonModel("resources/models/moon/moon.obj");
+<<<<<<< HEAD
     Model asteroidModel("resources/models/asteroid/rock.obj");
 
     // ============================
@@ -425,6 +639,11 @@ int system() {
 
         glBindVertexArray(0);
     }
+=======
+    Model rocketModel("resources/models/rocket/rocket.obj");
+
+
+>>>>>>> UI-fus√©e
 
     // Spheres for ray cast (lens flare)
     Sphere sunSphere = createSphere(sunRadius, lightPos);
@@ -441,7 +660,7 @@ int system() {
     unsigned int earthCloudTextureID = TextureFromFile("resources/models/earth/earthclouds.jpg", ".");
     unsigned int noiseTextureID = TextureFromFile("resources/others/noise.png", ".");
 
-    
+
     shader.use();
     shader.setVec3("light.position", lightPos);
     shader.setVec3("light.ambient", 0.18f, 0.18f, 0.18f);
@@ -460,9 +679,12 @@ int system() {
     earthShader.setFloat("light.linear", 0.0000002f);
     earthShader.setFloat("light.quadratic", 0.0000006f);
 
-    // EN: Sun glow intensity 
+    // Sun glow intensity 
     lampShader.use();
     lampShader.setFloat("sunIntensity", 120.0f); // si plus 200.5f
+
+
+
 
     // SKYBOX 
     float skyboxVertices[] = {
@@ -613,6 +835,19 @@ int system() {
             glfwSetWindowTitle(window, title.c_str());
         }
 
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        //  GUI window
+
+
+        if (!cameraType.empty()) {
+            RenderGuiOn(cameraType);
+        }
+        else(RenderGui());
+
         // Cursor lock/unlock (free + focus)
         glfwSetInputMode(window, GLFW_CURSOR, menuActive ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 
@@ -631,16 +866,14 @@ int system() {
         glClearColor(0.00f, 0.00f, 0.00f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Camera (FREE or FOCUS) LYNDA
         glm::mat4 view(1.0f);
 
         if (cameraType.empty()) {
-            //Free cam = Camera class (WASD + souris)
             view = camera.GetViewMatrix();
         }
         else {
-          
-            // Focus cam orbite autour de la planËte sÈlectionnÈe (souris = yaw/pitch)
+
+            // Focus cam orbite autour de la plan√®te s√©lectionn√©e (souris = yaw/pitch)
             glm::vec3 target = planetPosFor(cameraType, move, i);
             glm::vec3 offset = orbitOffsetFromAngles(focusYaw, focusPitch, focusDistance);
             camera.Position = target + offset;
@@ -673,15 +906,15 @@ int system() {
 
         draw_planet(move, i, view, projection, 1.0f, 1.4f, 29.8f * outerSpeed, 1574.0f * speed, 0.0f,
             "Earth", earthShader, pathShader, earthModel, &earthSphere,
-            &moonModel, &shader, earthNightTextureID, earthCloudTextureID);
+            &moonModel, &shader, earthNightTextureID, earthCloudTextureID, &rocketModel, &shader);
 
         draw_planet(move, i, view, projection, 1.52f, 1.0f, 24.1f * outerSpeed, 866.0f * speed, 0.0f,
             "Mars", shader, pathShader, marsModel, &marsSphere);
 
-        draw_planet(move, i, view, projection, 5.20f, 1.0f, 13.1f * outerSpeed, 45583.0f * speed, 0.0f,
+        draw_planet(move, i, view, projection, 5.20f, 1.0f, 13.1f * outerSpeed, 12000.0f * speed, 0.0f,         //real speed : 45583.0f
             "Jupiter", shader, pathShader, jupiterModel, &jupiterSphere);
 
-        draw_planet(move, i, view, projection, 9.54f, 1.0f, 9.7f * outerSpeed, 36840.0f * speed, 90.0f,
+        draw_planet(move, i, view, projection, 9.54f, 1.0f, 9.7f * outerSpeed, 10000 * speed, 90.0f,         //real speed : 36840.0f
             "Saturn", shader, pathShader, saturnModel, &saturnSphere);
 
         draw_planet(move, i, view, projection, 14.22f, 1.0f, 6.8f * outerSpeed, 14797.0f * speed, 160.0f,
@@ -737,6 +970,7 @@ int system() {
             glDeleteVertexArrays(1, &orbitVAO);
         }
 
+<<<<<<< HEAD
 
         // ============================
         // DRAW ASTEROIDS (INSTANCED)
@@ -768,6 +1002,9 @@ int system() {
 
 
 
+=======
+        
+>>>>>>> UI-fus√©e
 
         // SKYBOX
         glDepthFunc(GL_LEQUAL);
@@ -855,6 +1092,9 @@ int system() {
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glBindVertexArray(0);
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -863,23 +1103,8 @@ int system() {
     return 0;
 }
 
-
 // Movement + toggles
 static void doMovement() {
-
-    // DÈplacement WASD uniquement en free cam
-    if (cameraType.empty()) {
-        if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])    camera.ProcessKeyboard(FORWARD, deltaTime);
-        if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])  camera.ProcessKeyboard(BACKWARD, deltaTime);
-        if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])  camera.ProcessKeyboard(LEFT, deltaTime);
-        if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT]) camera.ProcessKeyboard(RIGHT, deltaTime);
-    }
-    else {
-        if (keys[GLFW_KEY_W] || keys[GLFW_KEY_S] || keys[GLFW_KEY_A] || keys[GLFW_KEY_D]) {
-           
-            // std::cout << "Press 0 to return to free camera\n";
-        }
-    }
 
     double currentTime = glfwGetTime();
     auto canToggle = [&]() {
@@ -889,6 +1114,32 @@ static void doMovement() {
         }
         return false;
         };
+
+    float dist = glm::length(camera.Position - lightPos);
+    dist = glm::clamp(dist, 50.0f, 20000.0f);
+
+    float moveSpeed = dist * 0.2f;
+    float velocity = moveSpeed * deltaTime;
+
+    // forward
+    if (keys[GLFW_KEY_W]) {
+        camera.Position += camera.Front * velocity;
+    }
+
+    // backward
+    if (keys[GLFW_KEY_S]) {
+        camera.Position -= camera.Front * velocity;
+    }
+
+    // left
+    if (keys[GLFW_KEY_A]) {
+        camera.Position -= camera.Right * velocity;
+    }
+
+    // right
+    if (keys[GLFW_KEY_D]) {
+        camera.Position += camera.Right * velocity;
+    }
 
     // P lock/unlock cursor
     if (keys[GLFW_KEY_P] && canToggle()) { menuActive = !menuActive; firstMouse = true; }
@@ -901,10 +1152,63 @@ static void doMovement() {
 
     // F lens flare
     if (keys[GLFW_KEY_F] && canToggle()) { lensFlareActive = !lensFlareActive; }
-
+   
     // [ / ] blur passes
     if (keys[GLFW_KEY_LEFT_BRACKET] && canToggle())  blurPasses = std::max(1, blurPasses - 1);
     if (keys[GLFW_KEY_RIGHT_BRACKET] && canToggle()) blurPasses = std::min(10, blurPasses + 1);
+
+    if (keys[GLFW_KEY_ENTER] && canToggle()) { showGUI = !showGUI; }
+
+}
+
+static void setGlobalView()
+{
+    cameraType.clear();
+    menuActive = false;
+
+    camera.Position = lightPos + glm::vec3(0.0f, GLOBAL_TOP_HEIGHT, 0.0f);
+
+    glm::vec3 dir = glm::normalize(lightPos - camera.Position);
+
+    float pitch = glm::degrees(std::asin(dir.y));
+    float yaw = glm::degrees(std::atan2(dir.z, dir.x));
+
+    camera.Pitch = pitch;
+    camera.Yaw = yaw;
+
+    camera.ProcessMouseMovement(0.0f, 0.0f);
+
+    camera.Zoom = 45.0f;
+
+    firstMouse = true;
+    lastX = SCREEN_WIDTH * 0.5f;
+    lastY = SCREEN_HEIGHT * 0.5f;
+    glfwSetCursorPos(window, lastX, lastY);
+}
+
+static void setGlobalOverview()
+{
+    cameraType.clear();
+    menuActive = false;
+
+    camera.Position = GLOBAL_OVERVIEW_POS;
+
+    glm::vec3 dir = glm::normalize(lightPos - camera.Position);
+
+    float pitch = glm::degrees(std::asin(dir.y));
+    float yaw = glm::degrees(std::atan2(dir.z, dir.x));
+
+    camera.Pitch = pitch;
+    camera.Yaw = yaw;
+
+    camera.ProcessMouseMovement(0.0f, 0.0f);
+
+    camera.Zoom = 45.0f;
+
+    firstMouse = true;
+    lastX = SCREEN_WIDTH * 0.5f;
+    lastY = SCREEN_HEIGHT * 0.5f;
+    glfwSetCursorPos(window, lastX, lastY);
 }
 
 
@@ -922,7 +1226,7 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         else if (action == GLFW_RELEASE) keys[key] = false;
     }
 
-   
+
     // Focus sur appui
     if (action == GLFW_PRESS) {
         if (key == GLFW_KEY_1) { setFocus("Mercury"); return; }
@@ -933,8 +1237,14 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         if (key == GLFW_KEY_6) { setFocus("Saturn");  return; }
         if (key == GLFW_KEY_7) { setFocus("Uranus");  return; }
         if (key == GLFW_KEY_8) { setFocus("Neptune"); return; }
-        if (key == GLFW_KEY_0) { clearFocus();        return; }
+        if (key == GLFW_KEY_0) { setGlobalView(); return; }
+
+        if (key == GLFW_KEY_SPACE) {
+            setGlobalOverview();
+            return;
+        }
     }
+
 }
 
 static void MouseCallback(GLFWwindow* window, double xPos, double yPos) {
@@ -953,32 +1263,61 @@ static void MouseCallback(GLFWwindow* window, double xPos, double yPos) {
     lastX = (GLfloat)xPos;
     lastY = (GLfloat)yPos;
 
-    
     if (menuActive) return;
 
     if (cameraType.empty()) {
-        // Free camera look 
         camera.ProcessMouseMovement(xOffset, yOffset);
+        return;
     }
-    else {
-        focusYaw += xOffset * focusMouseSensitivity;
-        focusPitch += yOffset * focusMouseSensitivity;
+
+    focusYaw += xOffset * focusMouseSensitivity;
+    focusPitch += yOffset * focusMouseSensitivity;
+    focusPitch = glm::clamp(focusPitch, -89.0f, 89.0f);
+}
+
+static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    if (menuActive) return;
+
+    const bool alt = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+
+    if (cameraType.empty())
+    {
+        if (alt)
+        {
+            float forward = -(float)yoffset * trackpadMoveSpeed;
+            float strafe = (float)xoffset * trackpadMoveSpeed;
+
+            camera.Position += camera.Front * forward;
+            camera.Position += camera.Right * strafe;
+        }
+        else
+        {
+            camera.ProcessMouseScroll((float)yoffset);
+        }
+        return;
+    }
+
+    if (alt)
+    {
+        focusYaw += (float)xoffset * trackpadOrbitSensitivity;
+        focusPitch += (float)-yoffset * trackpadOrbitSensitivity;
         focusPitch = glm::clamp(focusPitch, -89.0f, 89.0f);
+    }
+    else
+    {
+        focusDistance -= (float)yoffset * 10.0f;
+        focusDistance = glm::clamp(focusDistance, 5.0f, 5000.0f);
     }
 }
 
-static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    (void)window; (void)xoffset;
-    camera.ProcessMouseScroll((float)-yoffset);
-}
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     (void)window;
     glViewport(0, 0, width, height);
 }
 
-
-// Cubemap loader
 
 static unsigned int loadCubemap(const std::vector<std::string>& faces) {
     unsigned int textureID = 0;
@@ -1013,3 +1352,8 @@ static unsigned int loadCubemap(const std::vector<std::string>& faces) {
 
     return textureID;
 }
+
+
+
+
+

@@ -19,3 +19,5 @@ Makefile
 
 # vcpkg artifacts 
 vcpkg_installed/
+
+imgui.ini
