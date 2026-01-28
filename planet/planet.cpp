@@ -14,10 +14,6 @@
 #include "imgui/imgui.h"
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
-
-
-
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -27,10 +23,10 @@
 #include "model.h"
 #include "shader.h"
 
-// For stbi_load used in loadCubemap (stb_image.h)
+
 #include "stb_image.h"
 
-static const GLint WIDTH = 1280, HEIGHT = 720;
+static const GLint WIDTH = 2560, HEIGHT = 1440;
 static const double PI = 3.141592653589793238463;
 
 static int SCREEN_WIDTH = WIDTH, SCREEN_HEIGHT = HEIGHT;
@@ -63,7 +59,7 @@ static float zNear = 0.1f, zFar = 50000.0f;
 // "" = free cam sinon planète focus
 static std::string cameraType = "";
 
-// Cursor lock (sans ImGui) SIMON
+// menu panel 
 static bool menuActive = false;
 
 // Timing
@@ -256,6 +252,7 @@ static void setFocus(const std::string& name) {
 
     focusYaw = 45.0f;
     focusPitch = 15.0f;
+    focusDistance = focusDistanceFor(name);
 
     firstMouse = true;
 
@@ -268,8 +265,8 @@ static void draw_rocket(Model& rocketModel, Shader& shader, float speed, bool& d
 
 
 
-    static float minOffset = 2.f;
-    static float rocketOffset = 2.f;      // distance depuis la Terre
+    static float minOffset = 2.f;           // distance depuis la Terre
+    static float rocketOffset = 2.f;      
     static float maxDistance = 4.5f;       // distance max pour l’aller-retour
     static float rotation2 = -90.0f;
     static float rotationSpeed = 0.5f;
@@ -409,7 +406,7 @@ void RenderGui() {
 
     if (showGUI == false) return;
 
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowPos(ImVec2(0, 300));
     ImGui::SetNextWindowSize(ImVec2(400, 500));
 
     ImGui::Begin("Command Panel");
@@ -428,11 +425,14 @@ void RenderGui() {
     ImGui::Text("P : Lock / unlock cursor");
     ImGui::Text("T : Toggle orbit trajectories");
     ImGui::Text("B : Toggle bloom");
-    ImGui::Text("F : Toggle lens flare");
-    ImGui::Text("/ : Decrease / increase blur passes");
-    ImGui::Text("ESC : Quit");
+    ImGui::Text("F : Toggle lens flare"); 
 
     ImGui::Separator();
+
+    ImGui::Text("Z : up");
+    ImGui::Text("S : down");
+    ImGui::Text("D : right");
+    ImGui::Text("Q : left");
 
     ImGui::Text("Camera position:");
     ImGui::Text("X : %.2f", camera.Position.x);
@@ -442,6 +442,7 @@ void RenderGui() {
     ImGui::Separator();
 
     ImGui::Text("ENTER : close / open the panel");
+    ImGui::Text("ESC : Quit");
 
     ImGui::End();
 }
@@ -545,6 +546,7 @@ int system() {
     Shader lampShader("resources/shaders/lamp.vs", "resources/shaders/lamp.frag");
     Shader screenShader("resources/shaders/framebuffer.vs", "resources/shaders/framebuffer.frag");
     Shader blurShader("resources/shaders/blur.vs", "resources/shaders/blur.frag");
+    Shader asteroidShader("resources/shaders/asteroids.vs", "resources/shaders/modelLoading.frag");
 
     float sunRadius = 50.0f;
     float earthRadius = 1.5f;
@@ -568,6 +570,7 @@ int system() {
     Model neptuneModel("resources/models/neptune/neptune.obj");
     Model moonModel("resources/models/moon/moon.obj");
     Model rocketModel("resources/models/rocket/rocket.obj");
+
 
 
     // Spheres for ray cast (lens flare)
@@ -607,6 +610,9 @@ int system() {
     // Sun glow intensity 
     lampShader.use();
     lampShader.setFloat("sunIntensity", 120.0f); // si plus 200.5f
+
+
+
 
     // SKYBOX 
     float skyboxVertices[] = {
@@ -833,10 +839,10 @@ int system() {
         draw_planet(move, i, view, projection, 1.52f, 1.0f, 24.1f * outerSpeed, 866.0f * speed, 0.0f,
             "Mars", shader, pathShader, marsModel, &marsSphere);
 
-        draw_planet(move, i, view, projection, 5.20f, 1.0f, 13.1f * outerSpeed, 45583.0f * speed, 0.0f,
+        draw_planet(move, i, view, projection, 5.20f, 1.0f, 13.1f * outerSpeed, 12000.0f * speed, 0.0f,         //real speed : 45583.0f
             "Jupiter", shader, pathShader, jupiterModel, &jupiterSphere);
 
-        draw_planet(move, i, view, projection, 9.54f, 1.0f, 9.7f * outerSpeed, 36840.0f * speed, 90.0f,
+        draw_planet(move, i, view, projection, 9.54f, 1.0f, 9.7f * outerSpeed, 10000 * speed, 90.0f,         //real speed : 36840.0f
             "Saturn", shader, pathShader, saturnModel, &saturnSphere);
 
         draw_planet(move, i, view, projection, 14.22f, 1.0f, 6.8f * outerSpeed, 14797.0f * speed, 160.0f,
@@ -892,7 +898,7 @@ int system() {
             glDeleteVertexArrays(1, &orbitVAO);
         }
 
-
+        
 
         // SKYBOX
         glDepthFunc(GL_LEQUAL);

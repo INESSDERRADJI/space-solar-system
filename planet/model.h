@@ -64,7 +64,7 @@ private:
             return;
         }
 
-        // directory = dossier du modèle (compatible / et \)
+        // directory
         size_t slash = path.find_last_of("/\\");
         directory = (slash == std::string::npos) ? "." : path.substr(0, slash);
 
