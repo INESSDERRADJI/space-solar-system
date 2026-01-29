@@ -8,9 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(OpenGL REQUIRED)
 
 
-# vcpkg packages (OK seulement si toolchain vcpkg est utilisé)find_package(glfw3 CONFIG REQUIRED)
-=======
-# vcpkg packages (vcpkg DOIT être utilisé au cmake)
+# vcpkg packages 
 find_package(glfw3 CONFIG REQUIRED)
 >>>>>>> UI-fusée
 find_package(glm CONFIG REQUIRED)
@@ -30,7 +28,7 @@ add_executable(solarsystem
   libs/stb_image.cpp
   libs/SOIL2/etc1_utils.c
 
-  # ImGui (ATTENTION : pas dans libs/)
+  # ImGui 
   imgui/imgui.cpp
   imgui/imgui_draw.cpp
   imgui/imgui_tables.cpp
