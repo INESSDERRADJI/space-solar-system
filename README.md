@@ -32,5 +32,4 @@ This project renders a solar system scene with textured planets, orbital traject
 <img width="1179" height="668" alt="WhatsApp Image 2026-07-05 at 16 20 31 (2)" src="https://github.com/user-attachments/assets/9ca8ecea-2b8d-41f8-9deb-9045c40ba7a7" />
 <img width="1600" height="900" alt="WhatsApp Image 2026-07-05 at 16 20 31 (4)" src="https://github.com/user-attachments/assets/366925b6-57ae-4ca0-bb1a-aef59399ee16" />
 
-## Status
-Academic computer graphics project.
+
