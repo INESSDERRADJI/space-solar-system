@@ -1,45 +1,34 @@
-# Space Solar System (OpenGL)
+# Interactive Solar System
 
-Interactive solar system scene built in C++ with OpenGL.  
-The project uses CMake for building, GLFW/GLEW/GLM for rendering utilities, and GLSL shaders for lighting and post-processing.
+Real-time 3D solar system simulation developed in C++ with OpenGL.
 
-## Features
-- Real-time solar system rendering (Sun + planets)
-- Planet orbits + optional orbit trajectories (toggle)
-- Planet focus mode (keys 1–8) and free camera mode (0)
+## Overview
+
+This project renders a solar system scene with textured planets, orbital trajectories, camera controls and post-processing visual effects.
+
+## Main Features
+
+- Real-time rendering of the Sun and planets
+- Planet orbits and trajectory display
+- Planet focus mode and free camera navigation
 - Skybox environment
-- Post-processing effects:
-  - Bloom (toggle)
-  - Lens flare (toggle)
-  - Blur passes control
+- Bloom and lens flare effects
+- Custom 3D rocket model integrated into the scene
 
-## Controls
-- **W/A/S/D** or **Arrow keys**: move (only in free camera mode)  A ENLEVER 
-- **Mouse wheel**: zoom (FOV)
-- **0**: free camera
-- **1..8**: focus a planet
-- **P**: lock/unlock cursor
-- **T**: toggle orbit trajectories
-- **B**: toggle bloom
-- **F**: toggle lens flare
-- **ESC**: quit
+## Technologies
 
-## Tech Stack
-- **Language:** C++
-- **Graphics:** OpenGL + GLSL
-- **Build:** CMake
-- **Libraries:** GLFW, GLEW, GLM, stb_image
-- **Dependency management:** vcpkg (manifest mode via `vcpkg.json`)
+- C++
+- OpenGL
+- CMake
+- GLFW / GLEW / GLM
 
-## Project Structure
-space-solar-system/
-├─ main.cpp
-├─ CMakeLists.txt
-├─ vcpkg.json
-├─ planet/ # planet logic / rendering helpers
-├─ resources/
-│ ├─ shaders/ # GLSL shaders (.vs/.frag)
-│ ├─ models/ # .obj models (planets, sun, etc.)
-│ └─ skybox/ # cubemap textures
-├─ ui/ # (optional / future UI work fusé tintin)
-└─ build/ out/ .vs/ # generated (should be ignored)
+## Screenshots
+
+<img width="1579" height="968" alt="WhatsApp Image 2026-07-05 at 16 20 31 (3)" src="https://github.com/user-attachments/assets/3b4d2bb5-06c7-4a20-9980-cad90b9eb8ff" />
+<img width="945" height="564" alt="WhatsApp Image 2026-07-05 at 16 20 31 (5)" src="https://github.com/user-attachments/assets/50070aaa-ebff-4245-a074-148fe81350f3" />
+<img width="1179" height="667" alt="WhatsApp Image 2026-07-05 at 16 20 31" src="https://github.com/user-attachments/assets/90792e88-e521-40cd-89a0-528823a41b55" />
+<img width="1179" height="668" alt="WhatsApp Image 2026-07-05 at 16 20 31 (2)" src="https://github.com/user-attachments/assets/9ca8ecea-2b8d-41f8-9deb-9045c40ba7a7" />
+<img width="1600" height="900" alt="WhatsApp Image 2026-07-05 at 16 20 31 (4)" src="https://github.com/user-attachments/assets/366925b6-57ae-4ca0-bb1a-aef59399ee16" />
+
+## Status
+Academic computer graphics project.
