@@ -1,4 +1,6 @@
 # Interactive Solar System
+> This repository presents a portfolio overview of the project. The full source code is not publicly available.
+
 
 Real-time 3D solar system simulation developed in C++ with OpenGL.
 
